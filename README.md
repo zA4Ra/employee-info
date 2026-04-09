@@ -1,50 +1,95 @@
-# Welcome to your Expo app 👋
+# Employee Info — Assignment 4
 
-This is an [Expo](https://expo.dev) project created with [`create-expo-app`](https://www.npmjs.com/package/create-expo-app).
+## Backend
 
-## Get started
+**Firebase** (Authentication + Firestore)
 
-1. Install dependencies
+---
 
-   ```bash
-   npm install
-   ```
+## Setup
 
-2. Start the app
-
-   ```bash
-   npx expo start
-   ```
-
-In the output, you'll find options to open the app in a
-
-- [development build](https://docs.expo.dev/develop/development-builds/introduction/)
-- [Android emulator](https://docs.expo.dev/workflow/android-studio-emulator/)
-- [iOS simulator](https://docs.expo.dev/workflow/ios-simulator/)
-- [Expo Go](https://expo.dev/go), a limited sandbox for trying out app development with Expo
-
-You can start developing by editing the files inside the **app** directory. This project uses [file-based routing](https://docs.expo.dev/router/introduction).
-
-## Get a fresh project
-
-When you're ready, run:
+### 1. Install dependencies
 
 ```bash
-npm run reset-project
+npm install
+npx expo install firebase @react-native-async-storage/async-storage
 ```
 
-This command will move the starter code to the **app-example** directory and create a blank **app** directory where you can start developing.
+### 2. Create a Firebase project
 
-## Learn more
+1. Go to [https://console.firebase.google.com](https://console.firebase.google.com)
+2. Create a new project
+3. Enable **Authentication → Email/Password**
+4. Create a **Firestore** database (start in production mode)
+5. Add an **iOS + Android** app and copy the config values
 
-To learn more about developing your project with Expo, look at the following resources:
+### 3. Configure environment variables
 
-- [Expo documentation](https://docs.expo.dev/): Learn fundamentals, or go into advanced topics with our [guides](https://docs.expo.dev/guides).
-- [Learn Expo tutorial](https://docs.expo.dev/tutorial/introduction/): Follow a step-by-step tutorial where you'll create a project that runs on Android, iOS, and the web.
+Copy `.env.example` to `.env` and fill in your Firebase values:
 
-## Join the community
+```
+EXPO_PUBLIC_FIREBASE_API_KEY=...
+EXPO_PUBLIC_FIREBASE_AUTH_DOMAIN=...
+EXPO_PUBLIC_FIREBASE_PROJECT_ID=...
+EXPO_PUBLIC_FIREBASE_STORAGE_BUCKET=...
+EXPO_PUBLIC_FIREBASE_MESSAGING_SENDER_ID=...
+EXPO_PUBLIC_FIREBASE_APP_ID=...
+```
 
-Join our community of developers creating universal apps.
+### 4. Set Firestore Security Rules
 
-- [Expo on GitHub](https://github.com/expo/expo): View our open source platform and contribute.
-- [Discord community](https://chat.expo.dev): Chat with Expo users and ask questions.
+In Firebase Console → Firestore → Rules:
+
+```
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    match /submissions/{doc} {
+      allow read, update, delete: if request.auth != null
+        && request.auth.uid == resource.data.userId;
+      allow create: if request.auth != null
+        && request.resource.data.userId == request.auth.uid;
+    }
+  }
+}
+```
+
+### 5. Run the app
+
+```bash
+npx expo start
+```
+
+---
+
+## Test Accounts
+
+| Email | Password |
+|-------|----------|
+| test@example.com | Test1234 |
+
+*(Create via Sign Up screen)*
+
+---
+
+## Features Implemented
+
+### Core (Mandatory)
+- [x] Sign Up (Firebase Auth — createUserWithEmailAndPassword)
+- [x] Sign In (Firebase Auth — signInWithEmailAndPassword)
+- [x] Sign Out (with confirmation dialog)
+- [x] Protected navigation (auth guard in root _layout)
+- [x] Session persistence (AsyncStorage)
+- [x] Loading screen on app launch
+- [x] Employee Info form → Firestore (Create)
+- [x] Submissions list screen (Read — real-time listener)
+- [x] Records scoped to authenticated user (userId field)
+- [x] Error handling: network errors, auth errors, empty states
+- [x] Loading indicators on all async operations
+- [x] Formik + Yup client-side validation preserved from Assignment 3
+
+### Bonus
+- [x] Edit/Update saved records (department & salary)
+- [x] Delete with confirmation modal
+- [x] Forgot Password (sendPasswordResetEmail)
+- [x] Profile screen showing logged-in user's email and account info
