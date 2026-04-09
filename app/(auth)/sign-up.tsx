@@ -1,4 +1,5 @@
 import { Ionicons } from "@expo/vector-icons";
+import { createUserWithEmailAndPassword, updateProfile } from "firebase/auth";
 import { useFormik } from "formik";
 import { useState } from "react";
 import {
@@ -12,7 +13,9 @@ import {
   TextInput,
   View,
 } from "react-native";
+import { useRouter } from "expo-router";
 import * as Yup from "yup";
+import { auth } from "../../lib/firebase";
 
 const validationSchema = Yup.object({
   fullName: Yup.string()
@@ -37,18 +40,34 @@ type FieldKey = "fullName" | "email" | "password" | "confirmPassword";
 export default function SignUp() {
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirm, setShowConfirm] = useState(false);
-  const [isSubmitting, setIsSubmitting] = useState(false);
+  const router = useRouter();
 
   const formik = useFormik({
     initialValues: { fullName: "", email: "", password: "", confirmPassword: "" },
     validationSchema,
-    onSubmit: async (values, { resetForm }) => {
-      setIsSubmitting(true);
-      await new Promise((res) => setTimeout(res, 1200));
-      setIsSubmitting(false);
-      Alert.alert("Account created", `Welcome, ${values.fullName}!`, [
-        { text: "OK", onPress: () => resetForm() },
-      ]);
+    onSubmit: async (values, { setSubmitting }) => {
+      try {
+        const credential = await createUserWithEmailAndPassword(
+          auth,
+          values.email,
+          values.password
+        );
+        // Save display name to Firebase profile
+        await updateProfile(credential.user, { displayName: values.fullName });
+        // Auth guard redirects automatically
+      } catch (e: any) {
+        const msg =
+          e.code === "auth/email-already-in-use"
+            ? "An account with this email already exists."
+            : e.code === "auth/weak-password"
+            ? "Password is too weak. Please choose a stronger one."
+            : e.code === "auth/network-request-failed"
+            ? "Network error. Check your connection and try again."
+            : e.message;
+        Alert.alert("Sign Up Failed", msg);
+      } finally {
+        setSubmitting(false);
+      }
     },
   });
 
@@ -66,10 +85,10 @@ export default function SignUp() {
     if (/[A-Z]/.test(p)) score++;
     if (/[0-9]/.test(p)) score++;
     if (/[^A-Za-z0-9]/.test(p)) score++;
-    if (score <= 1) return { label: "Weak", color: "#c0392b", width: "25%" };
-    if (score === 2) return { label: "Fair", color: "#e67e22", width: "50%" };
-    if (score === 3) return { label: "Good", color: "#8a9a50", width: "75%" };
-    return { label: "Strong", color: "#3d5a47", width: "100%" };
+    if (score <= 1) return { label: "Weak", color: "#e07a91", width: "25%" };
+    if (score === 2) return { label: "Fair", color: "#e6a817", width: "50%" };
+    if (score === 3) return { label: "Good", color: "#5f8aff", width: "75%" };
+    return { label: "Strong", color: "#4caf88", width: "100%" };
   })();
 
   return (
@@ -96,7 +115,7 @@ export default function SignUp() {
             onChangeText={formik.handleChange("fullName")}
             onBlur={formik.handleBlur("fullName")}
             placeholder="John Smith"
-            placeholderTextColor="#b0aaa0"
+            placeholderTextColor="#d4cceb"
             autoCapitalize="words"
             style={inputStyle("fullName")}
           />
@@ -113,7 +132,7 @@ export default function SignUp() {
             onChangeText={formik.handleChange("email")}
             onBlur={formik.handleBlur("email")}
             placeholder="you@example.com"
-            placeholderTextColor="#b0aaa0"
+            placeholderTextColor="#d4cceb"
             keyboardType="email-address"
             autoCapitalize="none"
             autoComplete="email"
@@ -133,7 +152,7 @@ export default function SignUp() {
               onChangeText={formik.handleChange("password")}
               onBlur={formik.handleBlur("password")}
               placeholder="Min 8 chars, 1 uppercase, 1 number"
-              placeholderTextColor="#b0aaa0"
+              placeholderTextColor="#d4cceb"
               secureTextEntry={!showPassword}
               style={[inputStyle("password"), styles.passwordInput]}
             />
@@ -148,7 +167,15 @@ export default function SignUp() {
           {formik.values.password.length > 0 && passwordStrength && (
             <View style={styles.strengthRow}>
               <View style={styles.strengthTrack}>
-                <View style={[styles.strengthFill, { width: passwordStrength.width as any, backgroundColor: passwordStrength.color }]} />
+                <View
+                  style={[
+                    styles.strengthFill,
+                    {
+                      width: passwordStrength.width as any,
+                      backgroundColor: passwordStrength.color,
+                    },
+                  ]}
+                />
               </View>
               <Text style={[styles.strengthLabel, { color: passwordStrength.color }]}>
                 {passwordStrength.label}
@@ -169,7 +196,7 @@ export default function SignUp() {
               onChangeText={formik.handleChange("confirmPassword")}
               onBlur={formik.handleBlur("confirmPassword")}
               placeholder="Re-enter your password"
-              placeholderTextColor="#b0aaa0"
+              placeholderTextColor="#d4cceb"
               secureTextEntry={!showConfirm}
               style={[inputStyle("confirmPassword"), styles.passwordInput]}
             />
@@ -189,19 +216,22 @@ export default function SignUp() {
         <Pressable
           style={[
             styles.submitButton,
-            (!formik.isValid || !formik.dirty || isSubmitting) && styles.submitDisabled,
+            (!formik.isValid || !formik.dirty || formik.isSubmitting) && styles.submitDisabled,
           ]}
           onPress={() => formik.handleSubmit()}
-          disabled={!formik.isValid || !formik.dirty || isSubmitting}
+          disabled={!formik.isValid || !formik.dirty || formik.isSubmitting}
         >
           <Text style={styles.submitText}>
-            {isSubmitting ? "Creating account..." : "Create Account"}
+            {formik.isSubmitting ? "Creating account..." : "Create Account"}
           </Text>
         </Pressable>
 
-        <Pressable onPress={() => formik.resetForm()} style={styles.clearRow}>
-          <Text style={styles.clearText}>Clear form</Text>
-        </Pressable>
+        <View style={styles.switchRow}>
+          <Text style={styles.switchText}>Already have an account? </Text>
+          <Pressable onPress={() => router.push("/(auth)/sign-in")}>
+            <Text style={styles.switchLink}>Sign In</Text>
+          </Pressable>
+        </View>
       </ScrollView>
     </KeyboardAvoidingView>
   );
@@ -210,55 +240,38 @@ export default function SignUp() {
 const styles = StyleSheet.create({
   container: {
     flexGrow: 1,
-    backgroundColor: "#f9f7f5",
+    backgroundColor: "#150b27",
     paddingHorizontal: 20,
-    paddingTop: 28,
+    paddingTop: 40,
     paddingBottom: 40,
   },
-  pageHeader: {
-    marginBottom: 24,
-  },
+  pageHeader: { marginBottom: 24 },
   pageTitle: {
-    fontSize: 26,
-    fontWeight: "700",
-    color: "#1c1a18",
-    letterSpacing: -0.3,
+    fontSize: 28,
+    fontWeight: "800",
+    color: "#ffffff",
+    letterSpacing: 0.3,
   },
-  pageSubtitle: {
-    fontSize: 14,
-    color: "#9e9890",
-    marginTop: 4,
-  },
+  pageSubtitle: { fontSize: 14, color: "#ccc3ff", marginTop: 6 },
   divider: {
     height: 1,
-    backgroundColor: "#ece9e4",
+    backgroundColor: "rgba(158, 131, 241, 0.3)",
     marginBottom: 28,
   },
-  fieldGroup: {
-    marginBottom: 18,
-  },
-  label: {
-    fontSize: 13,
-    fontWeight: "600",
-    color: "#4a4540",
-    marginBottom: 7,
-  },
+  fieldGroup: { marginBottom: 18 },
+  label: { fontSize: 13, fontWeight: "600", color: "#ffffff", marginBottom: 7 },
   input: {
     borderWidth: 1,
-    borderColor: "#ddd8d2",
+    borderColor: "#5d4b90",
     borderRadius: 8,
     paddingVertical: 12,
     paddingHorizontal: 14,
     fontSize: 15,
-    color: "#1c1a18",
-    backgroundColor: "#ffffff",
+    color: "#ffffff",
+    backgroundColor: "#2a1f4e",
   },
-  passwordWrapper: {
-    position: "relative",
-  },
-  passwordInput: {
-    paddingRight: 46,
-  },
+  passwordWrapper: { position: "relative" },
+  passwordInput: { paddingRight: 46 },
   toggleIcon: {
     position: "absolute",
     right: 14,
@@ -266,18 +279,9 @@ const styles = StyleSheet.create({
     bottom: 0,
     justifyContent: "center",
   },
-  inputError: {
-    borderColor: "#c0392b",
-    backgroundColor: "#fdfafa",
-  },
-  inputValid: {
-    borderColor: "#6aab6a",
-  },
-  errorText: {
-    color: "#c0392b",
-    fontSize: 12,
-    marginTop: 5,
-  },
+  inputError: { borderColor: "#ff93a6", backgroundColor: "#3f2a4a" },
+  inputValid: { borderColor: "#5f8aff" },
+  errorText: { color: "#ff93a6", fontSize: 12, marginTop: 5 },
   strengthRow: {
     flexDirection: "row",
     alignItems: "center",
@@ -287,40 +291,26 @@ const styles = StyleSheet.create({
   strengthTrack: {
     flex: 1,
     height: 3,
-    backgroundColor: "#ece9e4",
+    backgroundColor: "#4f3b75",
     borderRadius: 2,
     overflow: "hidden",
   },
-  strengthFill: {
-    height: 3,
-    borderRadius: 2,
-  },
-  strengthLabel: {
-    fontSize: 12,
-    fontWeight: "600",
-    width: 46,
-  },
+  strengthFill: { height: 3, borderRadius: 2 },
+  strengthLabel: { fontSize: 12, fontWeight: "600", width: 46 },
   submitButton: {
     paddingVertical: 15,
     borderRadius: 8,
     alignItems: "center",
-    backgroundColor: "#3d5a47",
+    backgroundColor: "#8c67ff",
     marginTop: 28,
   },
-  submitDisabled: {
-    backgroundColor: "#a9bfb0",
+  submitDisabled: { backgroundColor: "#4b3a7a" },
+  submitText: { fontSize: 15, fontWeight: "700", color: "#ffffff" },
+  switchRow: {
+    flexDirection: "row",
+    justifyContent: "center",
+    marginTop: 20,
   },
-  submitText: {
-    fontSize: 15,
-    fontWeight: "700",
-    color: "#ffffff",
-  },
-  clearRow: {
-    alignItems: "center",
-    marginTop: 18,
-  },
-  clearText: {
-    fontSize: 13,
-    color: "#b0aaa0",
-  },
+  switchText: { fontSize: 13, color: "#ccc3ff" },
+  switchLink: { fontSize: 13, color: "#8c67ff", fontWeight: "700" },
 });

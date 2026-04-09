@@ -1,52 +1,44 @@
-import { Ionicons } from "@expo/vector-icons";
-import { Tabs } from "expo-router";
+import { useEffect } from "react";
+import { ActivityIndicator, View } from "react-native";
+import { Slot, useRouter, useSegments } from "expo-router";
+import { AuthProvider, useAuth } from "../context/AuthContext";
+
+function RootGuard() {
+  const { user, loading } = useAuth();
+  const segments = useSegments();
+  const router = useRouter();
+
+  useEffect(() => {
+    if (loading) return;
+
+    const inAuthGroup = segments[0] === "(auth)";
+
+    if (!user && !inAuthGroup) {
+      // Not signed in — send to sign-in
+      router.replace("/(auth)/sign-in");
+    } else if (user && inAuthGroup) {
+      // Already signed in — send to app
+      router.replace("/(app)/");
+    }
+  }, [user, loading]);
+
+  if (loading) {
+    return (
+      <View
+        style={{ flex: 1, justifyContent: "center", alignItems: "center", backgroundColor: "#150b27" }}
+      >
+        <ActivityIndicator size="large" color="#8c67ff" />
+      </View>
+    );
+  }
+
+  return <Slot />;
+}
 
 export default function RootLayout() {
   return (
-    <Tabs
-      screenOptions={{
-        tabBarActiveTintColor: "#3d5a47",
-        tabBarInactiveTintColor: "#b0aaa0",
-        tabBarStyle: {
-          backgroundColor: "#ffffff",
-          borderTopColor: "#ece9e4",
-          paddingBottom: 5,
-          height: 60,
-        },
-        tabBarLabelStyle: { fontSize: 12, fontWeight: "600" },
-        headerStyle: { backgroundColor: "#f9f7f5" },
-        headerTintColor: "#1c1a18",
-        headerTitleStyle: { fontWeight: "700", fontSize: 17 },
-        headerShadowVisible: false,
-      }}
-    >
-      <Tabs.Screen
-        name="index"
-        options={{
-          title: "Employee Info",
-          tabBarIcon: ({ color, size }) => (
-            <Ionicons name="person-outline" size={size} color={color} />
-          ),
-        }}
-      />
-      <Tabs.Screen
-        name="sign-in"
-        options={{
-          title: "Sign In",
-          tabBarIcon: ({ color, size }) => (
-            <Ionicons name="log-in-outline" size={size} color={color} />
-          ),
-        }}
-      />
-      <Tabs.Screen
-        name="sign-up"
-        options={{
-          title: "Sign Up",
-          tabBarIcon: ({ color, size }) => (
-            <Ionicons name="person-add-outline" size={size} color={color} />
-          ),
-        }}
-      />
-    </Tabs>
+    <AuthProvider>
+      <RootGuard />
+    </AuthProvider>
   );
 }

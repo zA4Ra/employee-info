@@ -1,4 +1,5 @@
 import { Ionicons } from "@expo/vector-icons";
+import { signInWithEmailAndPassword } from "firebase/auth";
 import { useFormik } from "formik";
 import { useState } from "react";
 import {
@@ -12,7 +13,9 @@ import {
   TextInput,
   View,
 } from "react-native";
+import { useRouter } from "expo-router";
 import * as Yup from "yup";
+import { auth } from "../../lib/firebase";
 
 const validationSchema = Yup.object({
   email: Yup.string()
@@ -25,18 +28,28 @@ const validationSchema = Yup.object({
 
 export default function SignIn() {
   const [showPassword, setShowPassword] = useState(false);
-  const [isSubmitting, setIsSubmitting] = useState(false);
+  const router = useRouter();
 
   const formik = useFormik({
     initialValues: { email: "", password: "" },
     validationSchema,
-    onSubmit: async (values, { resetForm }) => {
-      setIsSubmitting(true);
-      await new Promise((res) => setTimeout(res, 1200));
-      setIsSubmitting(false);
-      Alert.alert("Signed in", `Welcome back, ${values.email}`, [
-        { text: "OK", onPress: () => resetForm() },
-      ]);
+    onSubmit: async (values, { setSubmitting }) => {
+      try {
+        await signInWithEmailAndPassword(auth, values.email, values.password);
+        // Auth guard in _layout.tsx automatically redirects to (app)
+      } catch (e: any) {
+        const msg =
+          e.code === "auth/invalid-credential" || e.code === "auth/wrong-password"
+            ? "Invalid email or password. Please try again."
+            : e.code === "auth/user-not-found"
+            ? "No account found with this email."
+            : e.code === "auth/network-request-failed"
+            ? "Network error. Check your connection and try again."
+            : e.message;
+        Alert.alert("Sign In Failed", msg);
+      } finally {
+        setSubmitting(false);
+      }
     },
   });
 
@@ -50,8 +63,8 @@ export default function SignIn() {
         keyboardShouldPersistTaps="handled"
       >
         <View style={styles.pageHeader}>
-          <Text style={styles.pageTitle}>Sign In</Text>
-          <Text style={styles.pageSubtitle}>Enter your credentials to continue</Text>
+          <Text style={styles.pageTitle}>Welcome Back</Text>
+          <Text style={styles.pageSubtitle}>Sign in to your account to continue</Text>
         </View>
 
         <View style={styles.divider} />
@@ -64,7 +77,7 @@ export default function SignIn() {
             onChangeText={formik.handleChange("email")}
             onBlur={formik.handleBlur("email")}
             placeholder="you@example.com"
-            placeholderTextColor="#b0aaa0"
+            placeholderTextColor="#d4cceb"
             keyboardType="email-address"
             autoCapitalize="none"
             autoComplete="email"
@@ -88,7 +101,7 @@ export default function SignIn() {
               onChangeText={formik.handleChange("password")}
               onBlur={formik.handleBlur("password")}
               placeholder="Minimum 8 characters"
-              placeholderTextColor="#b0aaa0"
+              placeholderTextColor="#d4cceb"
               secureTextEntry={!showPassword}
               style={[
                 styles.input,
@@ -113,22 +126,34 @@ export default function SignIn() {
           )}
         </View>
 
+        {/* Forgot password link */}
+        <Pressable
+          onPress={() => router.push("/(auth)/forgot-password")}
+          style={styles.forgotRow}
+        >
+          <Text style={styles.forgotText}>Forgot your password?</Text>
+        </Pressable>
+
         <Pressable
           style={[
             styles.submitButton,
-            (!formik.isValid || !formik.dirty || isSubmitting) && styles.submitDisabled,
+            (!formik.isValid || !formik.dirty || formik.isSubmitting) &&
+              styles.submitDisabled,
           ]}
           onPress={() => formik.handleSubmit()}
-          disabled={!formik.isValid || !formik.dirty || isSubmitting}
+          disabled={!formik.isValid || !formik.dirty || formik.isSubmitting}
         >
           <Text style={styles.submitText}>
-            {isSubmitting ? "Signing in..." : "Sign In"}
+            {formik.isSubmitting ? "Signing in..." : "Sign In"}
           </Text>
         </Pressable>
 
-        <Pressable onPress={() => formik.resetForm()} style={styles.clearRow}>
-          <Text style={styles.clearText}>Clear form</Text>
-        </Pressable>
+        <View style={styles.switchRow}>
+          <Text style={styles.switchText}>Don't have an account? </Text>
+          <Pressable onPress={() => router.push("/(auth)/sign-up")}>
+            <Text style={styles.switchLink}>Sign Up</Text>
+          </Pressable>
+        </View>
       </ScrollView>
     </KeyboardAvoidingView>
   );
@@ -137,56 +162,39 @@ export default function SignIn() {
 const styles = StyleSheet.create({
   container: {
     flexGrow: 1,
-    backgroundColor: "#f9f7f5",
+    backgroundColor: "#150b27",
     paddingHorizontal: 20,
-    paddingTop: 28,
+    paddingTop: 40,
     paddingBottom: 40,
     justifyContent: "center",
   },
-  pageHeader: {
-    marginBottom: 24,
-  },
+  pageHeader: { marginBottom: 24 },
   pageTitle: {
-    fontSize: 26,
-    fontWeight: "700",
-    color: "#1c1a18",
-    letterSpacing: -0.3,
+    fontSize: 28,
+    fontWeight: "800",
+    color: "#ffffff",
+    letterSpacing: 0.3,
   },
-  pageSubtitle: {
-    fontSize: 14,
-    color: "#9e9890",
-    marginTop: 4,
-  },
+  pageSubtitle: { fontSize: 14, color: "#ccc3ff", marginTop: 6 },
   divider: {
     height: 1,
-    backgroundColor: "#ece9e4",
+    backgroundColor: "rgba(158, 131, 241, 0.3)",
     marginBottom: 28,
   },
-  fieldGroup: {
-    marginBottom: 18,
-  },
-  label: {
-    fontSize: 13,
-    fontWeight: "600",
-    color: "#4a4540",
-    marginBottom: 7,
-  },
+  fieldGroup: { marginBottom: 18 },
+  label: { fontSize: 13, fontWeight: "600", color: "#ffffff", marginBottom: 7 },
   input: {
     borderWidth: 1,
-    borderColor: "#ddd8d2",
+    borderColor: "#5d4b90",
     borderRadius: 8,
     paddingVertical: 12,
     paddingHorizontal: 14,
     fontSize: 15,
-    color: "#1c1a18",
-    backgroundColor: "#ffffff",
+    color: "#ffffff",
+    backgroundColor: "#2a1f4e",
   },
-  passwordWrapper: {
-    position: "relative",
-  },
-  passwordInput: {
-    paddingRight: 46,
-  },
+  passwordWrapper: { position: "relative" },
+  passwordInput: { paddingRight: 46 },
   toggleIcon: {
     position: "absolute",
     right: 14,
@@ -194,39 +202,25 @@ const styles = StyleSheet.create({
     bottom: 0,
     justifyContent: "center",
   },
-  inputError: {
-    borderColor: "#c0392b",
-    backgroundColor: "#fdfafa",
-  },
-  inputValid: {
-    borderColor: "#6aab6a",
-  },
-  errorText: {
-    color: "#c0392b",
-    fontSize: 12,
-    marginTop: 5,
-  },
+  inputError: { borderColor: "#ff93a6", backgroundColor: "#3f2a4a" },
+  inputValid: { borderColor: "#5f8aff" },
+  errorText: { color: "#ff93a6", fontSize: 12, marginTop: 5 },
+  forgotRow: { alignItems: "flex-end", marginBottom: 8 },
+  forgotText: { fontSize: 13, color: "#c3b6ff" },
   submitButton: {
     paddingVertical: 15,
     borderRadius: 8,
     alignItems: "center",
-    backgroundColor: "#3d5a47",
-    marginTop: 28,
+    backgroundColor: "#8c67ff",
+    marginTop: 20,
   },
-  submitDisabled: {
-    backgroundColor: "#a9bfb0",
+  submitDisabled: { backgroundColor: "#4b3a7a" },
+  submitText: { fontSize: 15, fontWeight: "700", color: "#ffffff" },
+  switchRow: {
+    flexDirection: "row",
+    justifyContent: "center",
+    marginTop: 20,
   },
-  submitText: {
-    fontSize: 15,
-    fontWeight: "700",
-    color: "#ffffff",
-  },
-  clearRow: {
-    alignItems: "center",
-    marginTop: 18,
-  },
-  clearText: {
-    fontSize: 13,
-    color: "#b0aaa0",
-  },
+  switchText: { fontSize: 13, color: "#ccc3ff" },
+  switchLink: { fontSize: 13, color: "#8c67ff", fontWeight: "700" },
 });
